@@ -1,0 +1,107 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Clinic {
+  id               String   @id @default(uuid())
+  name             String
+  phoneNumber      String   // Twilio number assigned to this clinic (E.164)
+  alertPhoneNumber String   // Receptionist's phone for instant SMS alerts (E.164)
+  timezone         String   @default("America/New_York")
+  address          String   @default("")
+  createdAt        DateTime @default(now())
+
+  patients        Patient[]
+  appointments    Appointment[]
+  reminderConfigs ReminderConfig[]
+  smsLogs         SmsLog[]
+
+  @@map("clinics")
+}
+
+model ReminderConfig {
+  id           String   @id @default(uuid())
+  clinicId     String
+  hoursBefore  Int      // e.g. 192 = 8 days, 48 = 2 days, 2 = 2 hours
+  label        String   // e.g. "8-day reminder" — shown in dashboard
+  createdAt    DateTime @default(now())
+
+  clinic       Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  reminderLogs ReminderLog[]
+
+  @@map("reminder_configs")
+}
+
+model Patient {
+  id                String   @id @default(uuid())
+  clinicId          String
+  name              String
+  phoneNumber       String   // E.164 format e.g. +15551234567
+  preferredLanguage String   @default("en") // 'en' | 'zh-TW' | 'yue'
+  createdAt         DateTime @default(now())
+
+  clinic       Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  appointments Appointment[]
+  smsLogs      SmsLog[]
+
+  @@unique([clinicId, phoneNumber])
+  @@map("patients")
+}
+
+model Appointment {
+  id              String   @id @default(uuid())
+  clinicId        String
+  patientId       String
+  appointmentAt   DateTime // stored in UTC
+  appointmentType String
+  status          String   @default("scheduled")
+  // values: 'scheduled' | 'confirmed' | 'cancelled' | 'reschedule_requested' | 'no_response'
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  clinic       Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient      Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  reminderLogs ReminderLog[]
+  smsLogs      SmsLog[]
+
+  @@map("appointments")
+}
+
+model ReminderLog {
+  id               String   @id @default(uuid())
+  appointmentId    String
+  reminderConfigId String
+  sentAt           DateTime @default(now())
+  twilioMessageSid String?
+
+  appointment    Appointment    @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  reminderConfig ReminderConfig @relation(fields: [reminderConfigId], references: [id], onDelete: Cascade)
+
+  @@unique([appointmentId, reminderConfigId]) // deduplication guarantee — prevents duplicate reminders
+  @@map("reminder_logs")
+}
+
+model SmsLog {
+  id               String   @id @default(uuid())
+  clinicId         String
+  appointmentId    String?
+  patientId        String?
+  direction        String   // 'inbound' | 'outbound'
+  body             String
+  fromNumber       String
+  toNumber         String
+  twilioMessageSid String?
+  status           String?  // 'delivered' | 'failed' | 'received' etc.
+  createdAt        DateTime @default(now())
+
+  clinic      Clinic       @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  appointment Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  patient     Patient?     @relation(fields: [patientId], references: [id], onDelete: SetNull)
+
+  @@map("sms_logs")
+}
