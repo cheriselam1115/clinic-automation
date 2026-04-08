@@ -127,7 +127,7 @@ export function LoginForm() {
         <footer className="mt-12 pt-8 border-t border-[#eceef0]">
           <div className="flex items-center gap-4 text-[#c1c7d1]">
             <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>verified_user</span>
-            <span className="text-xs font-medium tracking-wide">Secure HIPAA Compliant Gateway</span>
+            <span className="text-xs font-medium tracking-wide">Secure PHIPA &amp; PIPEDA Compliant Gateway</span>
           </div>
         </footer>
       </div>
