@@ -17,16 +17,20 @@ const d = (daysAhead: number, h: number, m = 0) => {
   return dt;
 };
 
+const p = (id: string, name: string, phoneNumber: string) => ({
+  id, name, phoneNumber, clinicId: DEMO_CLINIC_ID, preferredLanguage: "en", createdAt: new Date(),
+});
+
 export const DEMO_APPOINTMENTS = [
-  { id: "a1", patient: { id: "p1", name: "Sarah Mitchell", phone: "+16471110001" }, appointmentAt: d(0, 9, 0),  appointmentType: "Cleaning",      status: "confirmed",           patientId: "p1", clinicId: DEMO_CLINIC_ID, createdAt: new Date(), updatedAt: new Date(), notes: null, reminderSentAt: new Date() },
-  { id: "a2", patient: { id: "p2", name: "James Okafor",   phone: "+16471110002" }, appointmentAt: d(0, 10, 30), appointmentType: "X-Ray",         status: "scheduled",           patientId: "p2", clinicId: DEMO_CLINIC_ID, createdAt: new Date(), updatedAt: new Date(), notes: null, reminderSentAt: null },
-  { id: "a3", patient: { id: "p3", name: "Linda Pham",     phone: "+16471110003" }, appointmentAt: d(0, 11, 0),  appointmentType: "Consultation",  status: "confirmed",           patientId: "p3", clinicId: DEMO_CLINIC_ID, createdAt: new Date(), updatedAt: new Date(), notes: null, reminderSentAt: new Date() },
-  { id: "a4", patient: { id: "p4", name: "David Ferreira", phone: "+16471110004" }, appointmentAt: d(0, 13, 0),  appointmentType: "Filling",       status: "reschedule_requested", patientId: "p4", clinicId: DEMO_CLINIC_ID, createdAt: new Date(), updatedAt: new Date(), notes: null, reminderSentAt: new Date() },
-  { id: "a5", patient: { id: "p5", name: "Amy Chen",       phone: "+16471110005" }, appointmentAt: d(0, 14, 30), appointmentType: "Cleaning",      status: "no_response",         patientId: "p5", clinicId: DEMO_CLINIC_ID, createdAt: new Date(), updatedAt: new Date(), notes: null, reminderSentAt: new Date() },
-  { id: "a6", patient: { id: "p6", name: "Marcus Reid",    phone: "+16471110006" }, appointmentAt: d(1, 9, 30),  appointmentType: "Root Canal",    status: "confirmed",           patientId: "p6", clinicId: DEMO_CLINIC_ID, createdAt: new Date(), updatedAt: new Date(), notes: null, reminderSentAt: new Date() },
-  { id: "a7", patient: { id: "p7", name: "Priya Sharma",   phone: "+16471110007" }, appointmentAt: d(1, 11, 0),  appointmentType: "Whitening",     status: "scheduled",           patientId: "p7", clinicId: DEMO_CLINIC_ID, createdAt: new Date(), updatedAt: new Date(), notes: null, reminderSentAt: null },
-  { id: "a8", patient: { id: "p8", name: "Tom Nguyen",     phone: "+16471110008" }, appointmentAt: d(2, 10, 0),  appointmentType: "Extraction",    status: "scheduled",           patientId: "p8", clinicId: DEMO_CLINIC_ID, createdAt: new Date(), updatedAt: new Date(), notes: null, reminderSentAt: null },
-  { id: "a9", patient: { id: "p9", name: "Claire Dubois",  phone: "+16471110009" }, appointmentAt: d(3, 14, 0),  appointmentType: "Check-up",      status: "no_response",         patientId: "p9", clinicId: DEMO_CLINIC_ID, createdAt: new Date(), updatedAt: new Date(), notes: null, reminderSentAt: new Date() },
+  { id: "a1", patient: p("p1", "Sarah Mitchell", "+16471110001"), appointmentAt: d(0, 9, 0),   appointmentType: "Cleaning",      status: "confirmed",            patientId: "p1", clinicId: DEMO_CLINIC_ID, createdAt: new Date(), updatedAt: new Date(), notes: null, reminderSentAt: new Date() },
+  { id: "a2", patient: p("p2", "James Okafor",   "+16471110002"), appointmentAt: d(0, 10, 30), appointmentType: "X-Ray",         status: "scheduled",            patientId: "p2", clinicId: DEMO_CLINIC_ID, createdAt: new Date(), updatedAt: new Date(), notes: null, reminderSentAt: null },
+  { id: "a3", patient: p("p3", "Linda Pham",     "+16471110003"), appointmentAt: d(0, 11, 0),  appointmentType: "Consultation",  status: "confirmed",            patientId: "p3", clinicId: DEMO_CLINIC_ID, createdAt: new Date(), updatedAt: new Date(), notes: null, reminderSentAt: new Date() },
+  { id: "a4", patient: p("p4", "David Ferreira", "+16471110004"), appointmentAt: d(0, 13, 0),  appointmentType: "Filling",       status: "reschedule_requested", patientId: "p4", clinicId: DEMO_CLINIC_ID, createdAt: new Date(), updatedAt: new Date(), notes: null, reminderSentAt: new Date() },
+  { id: "a5", patient: p("p5", "Amy Chen",       "+16471110005"), appointmentAt: d(0, 14, 30), appointmentType: "Cleaning",      status: "no_response",          patientId: "p5", clinicId: DEMO_CLINIC_ID, createdAt: new Date(), updatedAt: new Date(), notes: null, reminderSentAt: new Date() },
+  { id: "a6", patient: p("p6", "Marcus Reid",    "+16471110006"), appointmentAt: d(1, 9, 30),  appointmentType: "Root Canal",    status: "confirmed",            patientId: "p6", clinicId: DEMO_CLINIC_ID, createdAt: new Date(), updatedAt: new Date(), notes: null, reminderSentAt: new Date() },
+  { id: "a7", patient: p("p7", "Priya Sharma",   "+16471110007"), appointmentAt: d(1, 11, 0),  appointmentType: "Whitening",     status: "scheduled",            patientId: "p7", clinicId: DEMO_CLINIC_ID, createdAt: new Date(), updatedAt: new Date(), notes: null, reminderSentAt: null },
+  { id: "a8", patient: p("p8", "Tom Nguyen",     "+16471110008"), appointmentAt: d(2, 10, 0),  appointmentType: "Extraction",    status: "scheduled",            patientId: "p8", clinicId: DEMO_CLINIC_ID, createdAt: new Date(), updatedAt: new Date(), notes: null, reminderSentAt: null },
+  { id: "a9", patient: p("p9", "Claire Dubois",  "+16471110009"), appointmentAt: d(3, 14, 0),  appointmentType: "Check-up",      status: "no_response",          patientId: "p9", clinicId: DEMO_CLINIC_ID, createdAt: new Date(), updatedAt: new Date(), notes: null, reminderSentAt: new Date() },
 ];
 
 const ago = (mins: number) => new Date(Date.now() - mins * 60 * 1000);
