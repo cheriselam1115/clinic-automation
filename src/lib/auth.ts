@@ -3,7 +3,17 @@ import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 
+// Demo accounts — no DB required
+const DEMO_USERS: Record<string, { password: string; clinicId: string; name: string }> = {
+  demo: {
+    password: "Preview#9182",
+    clinicId: "demo-ntd",
+    name: "Receptionist",
+  },
+};
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
   providers: [
     Credentials({
       name: "Credentials",
@@ -17,18 +27,25 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         if (!username || !password) return null;
 
-        const user = await prisma.user.findUnique({ where: { username } });
-        if (!user) return null;
+        // Try real DB first
+        try {
+          const user = await prisma.user.findUnique({ where: { username } });
+          if (user) {
+            const isValid = await bcrypt.compare(password, user.passwordHash);
+            if (!isValid) return null;
+            return { id: user.id, clinicId: user.clinicId, name: user.name, email: null };
+          }
+        } catch {
+          // DB not available — fall through to demo
+        }
 
-        const isValid = await bcrypt.compare(password, user.passwordHash);
-        if (!isValid) return null;
+        // Demo fallback
+        const demo = DEMO_USERS[username];
+        if (demo && password === demo.password) {
+          return { id: `demo-${username}`, clinicId: demo.clinicId, name: demo.name, email: null };
+        }
 
-        return {
-          id: user.id,
-          clinicId: user.clinicId,
-          name: user.name,
-          email: null,
-        };
+        return null;
       },
     }),
   ],
