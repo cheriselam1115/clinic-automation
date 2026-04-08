@@ -1,6 +1,7 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
+import { prisma } from "@/lib/prisma";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
@@ -16,19 +17,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         if (!username || !password) return null;
 
-        const validUsername = process.env.RECEPTIONIST_USERNAME;
-        const passwordHash = process.env.RECEPTIONIST_PASSWORD_HASH;
+        const user = await prisma.user.findUnique({ where: { username } });
+        if (!user) return null;
 
-        if (!validUsername || !passwordHash) return null;
-        if (username !== validUsername) return null;
-
-        const isValid = await bcrypt.compare(password, passwordHash);
+        const isValid = await bcrypt.compare(password, user.passwordHash);
         if (!isValid) return null;
 
         return {
-          id: "receptionist",
-          name: "Receptionist",
-          email: "receptionist@clinic.local",
+          id: user.id,
+          clinicId: user.clinicId,
+          name: user.name,
+          email: null,
         };
       },
     }),
@@ -38,5 +37,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   session: {
     strategy: "jwt",
+  },
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.userId = user.id;
+        token.clinicId = (user as { clinicId: string }).clinicId;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      session.user.id = token.userId;
+      session.user.clinicId = token.clinicId;
+      return session;
+    },
   },
 });

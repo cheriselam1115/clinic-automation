@@ -1,9 +1,10 @@
-import { prisma } from "@/lib/prisma";
-
 export const dynamic = "force-dynamic";
 
+import { prisma } from "@/lib/prisma";
+import { getClinicId } from "@/lib/session";
+
 export default async function SmsActivityPage() {
-  const clinicId = process.env.CLINIC_ID!;
+  const clinicId = await getClinicId();
 
   const logs = await prisma.smsLog.findMany({
     where: { clinicId },

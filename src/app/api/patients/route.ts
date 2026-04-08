@@ -1,12 +1,13 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { getClinicId } from "@/lib/session";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const clinicId = process.env.CLINIC_ID!;
+  const clinicId = await getClinicId();
   const q = req.nextUrl.searchParams.get("q") ?? "";
 
   const patients = await prisma.patient.findMany({
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const clinicId = process.env.CLINIC_ID!;
+  const clinicId = await getClinicId();
   const body = await req.json();
   const { name, phoneNumber, preferredLanguage = "en" } = body;
 

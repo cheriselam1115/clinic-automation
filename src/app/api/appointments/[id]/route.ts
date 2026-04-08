@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { getClinicId } from "@/lib/session";
 
 export async function GET(
   _req: NextRequest,
@@ -9,9 +10,10 @@ export async function GET(
   const session = await auth();
   if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
+  const clinicId = await getClinicId();
   const { id } = await params;
   const appointment = await prisma.appointment.findUnique({
-    where: { id },
+    where: { id, clinicId },
     include: { patient: true, reminderLogs: true, smsLogs: true },
   });
 
@@ -26,12 +28,13 @@ export async function PUT(
   const session = await auth();
   if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
+  const clinicId = await getClinicId();
   const { id } = await params;
   const body = await req.json();
   const { appointmentAt, appointmentType, status, notes } = body;
 
   const appointment = await prisma.appointment.update({
-    where: { id },
+    where: { id, clinicId },
     data: {
       ...(appointmentAt && { appointmentAt: new Date(appointmentAt) }),
       ...(appointmentType && { appointmentType }),
@@ -51,9 +54,10 @@ export async function DELETE(
   const session = await auth();
   if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
+  const clinicId = await getClinicId();
   const { id } = await params;
   await prisma.appointment.update({
-    where: { id },
+    where: { id, clinicId },
     data: { status: "cancelled" },
   });
 

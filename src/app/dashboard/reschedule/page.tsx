@@ -1,21 +1,23 @@
 export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
+import { getClinicId } from "@/lib/session";
 import { CallQueueClient } from "@/components/dashboard/CallQueueClient";
 
 export default async function ReschedulePage() {
-  const clinicId = process.env.CLINIC_ID!;
+  const clinicId = await getClinicId();
 
-  const appointments = await prisma.appointment.findMany({
-    where: {
-      clinicId,
-      status: { in: ["reschedule_requested", "no_response", "cancelled"] },
-    },
-    include: { patient: true },
-    orderBy: { updatedAt: "desc" },
-  });
-
-  const clinic = await prisma.clinic.findUnique({ where: { id: clinicId } });
+  const [appointments, clinic] = await Promise.all([
+    prisma.appointment.findMany({
+      where: {
+        clinicId,
+        status: { in: ["reschedule_requested", "no_response", "cancelled"] },
+      },
+      include: { patient: true },
+      orderBy: { updatedAt: "desc" },
+    }),
+    prisma.clinic.findUnique({ where: { id: clinicId } }),
+  ]);
 
   return (
     <div className="space-y-6">

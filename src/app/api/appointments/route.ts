@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { getClinicId } from "@/lib/session";
 import { sendSms } from "@/lib/twilio";
 import { confirmationSms, type Language } from "@/lib/sms-templates";
 import { buildGoogleCalendarUrl, buildAppleCalendarUrl } from "@/lib/calendar";
@@ -10,7 +11,7 @@ export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const clinicId = process.env.CLINIC_ID!;
+  const clinicId = await getClinicId();
   const { searchParams } = req.nextUrl;
   const status = searchParams.get("status");
   const date = searchParams.get("date"); // YYYY-MM-DD
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const clinicId = process.env.CLINIC_ID!;
+  const clinicId = await getClinicId();
   const body = await req.json();
   const { patientId, appointmentAt, appointmentType, notes } = body;
 

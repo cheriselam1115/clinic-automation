@@ -13,14 +13,30 @@ model Clinic {
   alertPhoneNumber String   // Receptionist's phone for instant SMS alerts (E.164)
   timezone         String   @default("America/New_York")
   address          String   @default("")
+  logoUrl          String?
+  settings         Json?    @default("{}")
   createdAt        DateTime @default(now())
 
+  users           User[]
   patients        Patient[]
   appointments    Appointment[]
   reminderConfigs ReminderConfig[]
   smsLogs         SmsLog[]
 
   @@map("clinics")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  clinicId     String
+  username     String   @unique
+  passwordHash String
+  name         String   @default("Receptionist")
+  createdAt    DateTime @default(now())
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@map("users")
 }
 
 model ReminderConfig {

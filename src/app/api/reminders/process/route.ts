@@ -15,14 +15,22 @@ export async function POST(req: NextRequest) {
 
   const now = new Date();
   const WINDOW_MINUTES = 15;
-  const clinicId = process.env.CLINIC_ID!;
+  // Reminders run for all clinics in a single cron pass
+  const clinics = await prisma.clinic.findMany({ select: { id: true } });
+  const results = await Promise.all(clinics.map((c) => processClinic(c.id, now, WINDOW_MINUTES)));
+  const remindersSent = results.reduce((a, b) => a + b.remindersSent, 0);
+  const noResponseFlagged = results.reduce((a, b) => a + b.noResponseFlagged, 0);
+  return Response.json({ success: true, remindersSent, noResponseFlagged, processedAt: now.toISOString() });
+}
+
+async function processClinic(clinicId: string, now: Date, WINDOW_MINUTES: number) {
 
   const [clinic, reminderConfigs] = await Promise.all([
     prisma.clinic.findUnique({ where: { id: clinicId } }),
     prisma.reminderConfig.findMany({ where: { clinicId } }),
   ]);
 
-  if (!clinic) return Response.json({ error: "Clinic not found" }, { status: 404 });
+  if (!clinic) return { remindersSent: 0, noResponseFlagged: 0 };
 
   let remindersSent = 0;
   let noResponseFlagged = 0;
@@ -145,10 +153,5 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return Response.json({
-    success: true,
-    remindersSent,
-    noResponseFlagged,
-    processedAt: now.toISOString(),
-  });
+  return { remindersSent, noResponseFlagged };
 }

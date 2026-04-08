@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
@@ -13,13 +14,27 @@ const navItems = [
   { href: "/dashboard/settings", label: "Settings" },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  clinicName: string;
+  logoUrl?: string | null;
+}
+
+export function Sidebar({ clinicName, logoUrl }: SidebarProps) {
   const pathname = usePathname();
 
   return (
     <aside className="w-56 min-h-screen bg-white border-r flex flex-col">
-      <div className="px-6 py-5 border-b">
-        <span className="font-semibold text-lg tracking-tight">Clinic SMS</span>
+      <div className="px-6 py-5 border-b flex items-center gap-3">
+        {logoUrl && (
+          <Image
+            src={logoUrl}
+            alt={clinicName}
+            width={28}
+            height={28}
+            className="rounded-sm object-contain shrink-0"
+          />
+        )}
+        <span className="font-semibold text-lg tracking-tight truncate">{clinicName}</span>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-1">
         {navItems.map((item) => (

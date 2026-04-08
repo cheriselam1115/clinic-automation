@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
-import { Badge } from "@/components/ui/badge";
+import { getClinicId } from "@/lib/session";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 
@@ -14,7 +14,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default async function DashboardPage() {
-  const clinicId = process.env.CLINIC_ID!;
+  const clinicId = await getClinicId();
 
   const now = new Date();
   const startOfDay = new Date(now);
@@ -22,7 +22,7 @@ export default async function DashboardPage() {
   const endOfDay = new Date(now);
   endOfDay.setHours(23, 59, 59, 999);
 
-  const [todayAppointments, callQueue, totalScheduled] = await Promise.all([
+  const [todayAppointments, callQueue, totalScheduled, clinic] = await Promise.all([
     prisma.appointment.findMany({
       where: {
         clinicId,
@@ -41,9 +41,8 @@ export default async function DashboardPage() {
     prisma.appointment.count({
       where: { clinicId, status: "scheduled", appointmentAt: { gte: now } },
     }),
+    prisma.clinic.findUnique({ where: { id: clinicId } }),
   ]);
-
-  const clinic = await prisma.clinic.findUnique({ where: { id: clinicId } });
 
   return (
     <div className="space-y-6">
@@ -107,8 +106,6 @@ export default async function DashboardPage() {
                       minute: "2-digit",
                       timeZone: clinic?.timezone ?? "UTC",
                     })}
-                    {" · "}
-                    {appt.appointmentType}
                   </p>
                 </div>
                 <span

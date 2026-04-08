@@ -27,8 +27,30 @@ async function main() {
     skipDuplicates: true,
   });
 
+  // Create default receptionist user tied to this clinic
+  const username = process.env.RECEPTIONIST_USERNAME ?? "admin";
+  const passwordHash = process.env.RECEPTIONIST_PASSWORD_HASH;
+
+  if (passwordHash) {
+    await prisma.user.upsert({
+      where: { username },
+      update: { clinicId: clinic.id },
+      create: {
+        clinicId: clinic.id,
+        username,
+        passwordHash,
+        name: "Receptionist",
+      },
+    });
+    console.log("Seeded user:", username);
+  } else {
+    console.warn(
+      "⚠️  RECEPTIONIST_PASSWORD_HASH not set — skipping user seed.\n" +
+      "   Generate one with: node -e \"require('bcryptjs').hash('yourpassword', 10).then(console.log)\""
+    );
+  }
+
   console.log("Seeded clinic:", clinic.id);
-  console.log("Add this to your .env.local: CLINIC_ID=" + clinic.id);
 }
 
 main()

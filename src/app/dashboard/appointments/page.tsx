@@ -1,23 +1,25 @@
 export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
+import { getClinicId } from "@/lib/session";
 import { AppointmentTable } from "@/components/appointments/AppointmentTable";
 import { NewAppointmentButton } from "@/components/appointments/NewAppointmentButton";
 
 export default async function AppointmentsPage() {
-  const clinicId = process.env.CLINIC_ID!;
+  const clinicId = await getClinicId();
 
-  const appointments = await prisma.appointment.findMany({
-    where: {
-      clinicId,
-      appointmentAt: { gte: new Date() },
-    },
-    include: { patient: true },
-    orderBy: { appointmentAt: "asc" },
-    take: 100,
-  });
-
-  const clinic = await prisma.clinic.findUnique({ where: { id: clinicId } });
+  const [appointments, clinic] = await Promise.all([
+    prisma.appointment.findMany({
+      where: {
+        clinicId,
+        appointmentAt: { gte: new Date() },
+      },
+      include: { patient: true },
+      orderBy: { appointmentAt: "asc" },
+      take: 100,
+    }),
+    prisma.clinic.findUnique({ where: { id: clinicId } }),
+  ]);
 
   return (
     <div className="space-y-6">
