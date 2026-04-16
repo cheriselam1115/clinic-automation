@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
 import { getClinicId } from "@/lib/session";
-import { DEMO_CLINIC_ID, DEMO_CLINIC, DEMO_APPOINTMENTS, DEMO_SMS_LOGS } from "@/lib/demo-data";
+import { DEMO_CLINIC_ID, DEMO_CLINIC, DEMO_APPOINTMENTS, DEMO_SMS_LOGS, DEMO_WAITLIST } from "@/lib/demo-data";
 import Link from "next/link";
 
 const STATUS_CONFIG: Record<string, { label: string; classes: string }> = {
@@ -26,6 +26,7 @@ export default async function DashboardPage() {
   let callQueueCount: number;
   let unconfirmedCount: number;
   let recentSmsCount: number;
+  let waitlistCount: number;
   let clinic: { name: string; timezone: string | null } | null;
 
   if (clinicId === DEMO_CLINIC_ID) {
@@ -43,6 +44,7 @@ export default async function DashboardPage() {
     ).length;
     unconfirmedCount = DEMO_APPOINTMENTS.filter((a) => a.status === "scheduled").length;
     recentSmsCount = DEMO_SMS_LOGS.length;
+    waitlistCount = DEMO_WAITLIST.filter((e) => ["waiting", "offered"].includes(e.status)).length;
     clinic = DEMO_CLINIC;
   } else {
     const now = new Date();
@@ -51,7 +53,7 @@ export default async function DashboardPage() {
     const endOfDay = new Date(now);
     endOfDay.setHours(23, 59, 59, 999);
 
-    [todayAppointments, callQueueCount, unconfirmedCount, clinic] = await Promise.all([
+    [todayAppointments, callQueueCount, unconfirmedCount, clinic, waitlistCount] = await Promise.all([
       prisma.appointment.findMany({
         where: { clinicId, appointmentAt: { gte: startOfDay, lte: endOfDay } },
         include: { patient: true },
@@ -64,6 +66,9 @@ export default async function DashboardPage() {
         where: { clinicId, status: "scheduled", appointmentAt: { gte: now } },
       }),
       prisma.clinic.findUnique({ where: { id: clinicId } }),
+      prisma.waitlistEntry.count({
+        where: { clinicId, status: { in: ["waiting", "offered"] } },
+      }),
     ]);
     recentSmsCount = await prisma.smsLog.count({ where: { clinicId } }).catch(() => 0);
   }
@@ -89,7 +94,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Bento stat cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div
           className="text-white p-6 rounded-2xl flex flex-col justify-between min-h-[120px]"
           style={{ background: "linear-gradient(135deg, #004471 0%, #005c97 100%)" }}
@@ -112,13 +117,28 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-2xl flex flex-col justify-between min-h-[120px] shadow-sm">
-          <span className="material-symbols-outlined text-[#004471] text-3xl">event_available</span>
+        <div
+          className="text-white p-6 rounded-2xl flex flex-col justify-between min-h-[120px]"
+          style={{ background: "linear-gradient(135deg, #e8963a 0%, #c97c2b 100%)" }}
+        >
+          <span className="material-symbols-outlined text-[#fef3c7] text-3xl">event_available</span>
           <div>
-            <p className="text-sm text-[#414750] mb-1">Unconfirmed</p>
-            <p className="text-3xl font-bold font-headline text-[#191c1e]">{unconfirmedCount}</p>
+            <p className="text-sm opacity-80 mb-1">Unconfirmed</p>
+            <p className="text-3xl font-bold font-headline">{unconfirmedCount}</p>
           </div>
         </div>
+
+        <Link
+          href="/dashboard/waitlist"
+          className="p-6 rounded-2xl flex flex-col justify-between min-h-[120px] text-white transition-opacity hover:opacity-90"
+          style={{ background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)" }}
+        >
+          <span className="material-symbols-outlined text-[#bae6fd] text-3xl">queue</span>
+          <div>
+            <p className="text-sm opacity-80 mb-1">On Waitlist</p>
+            <p className="text-3xl font-bold font-headline">{waitlistCount}</p>
+          </div>
+        </Link>
       </div>
 
       {/* Main layout: schedule + quick actions */}

@@ -10,6 +10,7 @@ const navItems = [
   { href: "/dashboard",              label: "Schedule",     icon: "calendar_today" },
   { href: "/dashboard/appointments", label: "Appointments", icon: "event_available" },
   { href: "/dashboard/reschedule",   label: "Call Queue",   icon: "phone_in_talk" },
+  { href: "/dashboard/waitlist",     label: "Waitlist",     icon: "queue" },
   { href: "/dashboard/sms",          label: "SMS Activity", icon: "chat" },
   { href: "/dashboard/settings",     label: "Settings",     icon: "settings" },
 ];

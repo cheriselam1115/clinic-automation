@@ -48,3 +48,54 @@ export const DEMO_SMS_LOGS = [
 export const DEMO_CALL_QUEUE = DEMO_APPOINTMENTS.filter(
   (a) => ["reschedule_requested", "no_response"].includes(a.status)
 );
+
+const demoPatient = (id: string, name: string, phoneNumber: string) => ({
+  id, name, phoneNumber, preferredLanguage: "en",
+});
+
+export const DEMO_WAITLIST = [
+  {
+    id: "wl-1",
+    status: "waiting",
+    appointmentType: "Cleaning",
+    preferredDateFrom: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+    preferredDateTo: new Date(Date.now() + 21 * 24 * 60 * 60 * 1000).toISOString(),
+    timePreference: "morning",
+    notes: "Prefers Dr. Kim if possible",
+    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    patient: demoPatient("wp1", "Linda Park", "+16471110011"),
+    offers: [],
+  },
+  {
+    id: "wl-2",
+    status: "offered",
+    appointmentType: null,
+    preferredDateFrom: null,
+    preferredDateTo: null,
+    timePreference: "any",
+    notes: null,
+    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    patient: demoPatient("wp2", "James Yuen", "+16471110012"),
+    offers: [
+      {
+        id: "wo-1",
+        offeredApptAt: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000 + 10 * 60 * 60 * 1000).toISOString(),
+        offeredApptType: "Check-up",
+        offerExpiresAt: new Date(Date.now() + 90 * 60 * 1000).toISOString(), // 90 mins remaining
+        status: "pending",
+      },
+    ],
+  },
+  {
+    id: "wl-3",
+    status: "booked",
+    appointmentType: "Check-up",
+    preferredDateFrom: null,
+    preferredDateTo: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+    timePreference: "afternoon",
+    notes: null,
+    createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    patient: demoPatient("wp3", "Amy Tran", "+16471110013"),
+    offers: [],
+  },
+];

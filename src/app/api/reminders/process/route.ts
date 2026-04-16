@@ -2,14 +2,16 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendSms } from "@/lib/twilio";
 import { twilioClient } from "@/lib/twilio";
+import { processExpiredOffers } from "@/lib/waitlist";
 import { reminderSms, receptionistNoResponseAlert, type Language } from "@/lib/sms-templates";
 import { formatAppointmentDate } from "@/lib/format-date";
 
 export async function POST(req: NextRequest) {
-  // Validate cron secret
+  // Validate cron secret — CRON_SECRET must always be set in production.
+  // Fail closed: if the env var is missing, reject the request.
   const authHeader = req.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -20,7 +22,8 @@ export async function POST(req: NextRequest) {
   const results = await Promise.all(clinics.map((c) => processClinic(c.id, now, WINDOW_MINUTES)));
   const remindersSent = results.reduce((a, b) => a + b.remindersSent, 0);
   const noResponseFlagged = results.reduce((a, b) => a + b.noResponseFlagged, 0);
-  return Response.json({ success: true, remindersSent, noResponseFlagged, processedAt: now.toISOString() });
+  const waitlistExpired = results.reduce((a, b) => a + (b.waitlistExpired ?? 0), 0);
+  return Response.json({ success: true, remindersSent, noResponseFlagged, waitlistExpired, processedAt: now.toISOString() });
 }
 
 async function processClinic(clinicId: string, now: Date, WINDOW_MINUTES: number) {
@@ -153,5 +156,8 @@ async function processClinic(clinicId: string, now: Date, WINDOW_MINUTES: number
     }
   }
 
-  return { remindersSent, noResponseFlagged };
+  // Expire stale waitlist offers and cascade to next patient
+  const { expiredCount: waitlistExpired } = await processExpiredOffers(clinicId, now);
+
+  return { remindersSent, noResponseFlagged, waitlistExpired };
 }

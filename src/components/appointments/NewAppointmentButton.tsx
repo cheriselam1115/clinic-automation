@@ -14,15 +14,40 @@ const LANGUAGES = [
   { value: "yue", label: "廣東話 (Cantonese)" },
 ];
 
-export function NewAppointmentButton({ clinicId }: { clinicId: string }) {
+interface PrefilledPatient {
+  id: string;
+  name: string;
+  phoneNumber: string;
+  preferredLanguage: string;
+}
+
+interface NewAppointmentButtonProps {
+  clinicId: string;
+  prefilledPatient?: PrefilledPatient;
+  /** Custom label for the trigger button */
+  label?: string;
+  /** If true, render as an inline button (no separate trigger needed) */
+  defaultOpen?: boolean;
+  onClose?: () => void;
+}
+
+export function NewAppointmentButton({
+  clinicId,
+  prefilledPatient,
+  label,
+  defaultOpen = false,
+  onClose,
+}: NewAppointmentButtonProps) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const [patientName, setPatientName] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [preferredLanguage, setPreferredLanguage] = useState("en");
+  const [patientName, setPatientName] = useState(prefilledPatient?.name ?? "");
+  const [phoneNumber, setPhoneNumber] = useState(prefilledPatient?.phoneNumber ?? "");
+  const [preferredLanguage, setPreferredLanguage] = useState(
+    prefilledPatient?.preferredLanguage ?? "en"
+  );
   const [appointmentAt, setAppointmentAt] = useState("");
   const [appointmentType, setAppointmentType] = useState("");
   const [notes, setNotes] = useState("");
@@ -33,26 +58,30 @@ export function NewAppointmentButton({ clinicId }: { clinicId: string }) {
     setLoading(true);
 
     try {
-      // Upsert patient
-      const patientRes = await fetch("/api/patients", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: patientName, phoneNumber, preferredLanguage }),
-      });
-
-      if (!patientRes.ok) {
-        const data = await patientRes.json();
-        throw new Error(data.error ?? "Failed to create patient");
+      // Use prefilled patient ID if provided, otherwise upsert
+      let patientId: string;
+      if (prefilledPatient) {
+        patientId = prefilledPatient.id;
+      } else {
+        const patientRes = await fetch("/api/patients", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: patientName, phoneNumber, preferredLanguage }),
+        });
+        if (!patientRes.ok) {
+          const data = await patientRes.json();
+          throw new Error(data.error ?? "Failed to create patient");
+        }
+        const patient = await patientRes.json();
+        patientId = patient.id;
       }
-
-      const patient = await patientRes.json();
 
       // Create appointment
       const apptRes = await fetch("/api/appointments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          patientId: patient.id,
+          patientId,
           appointmentAt,
           appointmentType,
           notes,
@@ -66,6 +95,7 @@ export function NewAppointmentButton({ clinicId }: { clinicId: string }) {
 
       setOpen(false);
       resetForm();
+      onClose?.();
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -75,9 +105,11 @@ export function NewAppointmentButton({ clinicId }: { clinicId: string }) {
   }
 
   function resetForm() {
-    setPatientName("");
-    setPhoneNumber("");
-    setPreferredLanguage("en");
+    if (!prefilledPatient) {
+      setPatientName("");
+      setPhoneNumber("");
+      setPreferredLanguage("en");
+    }
     setAppointmentAt("");
     setAppointmentType("");
     setNotes("");
@@ -86,46 +118,58 @@ export function NewAppointmentButton({ clinicId }: { clinicId: string }) {
 
   return (
     <>
-      <Button onClick={() => setOpen(true)}>+ New Appointment</Button>
+      <Button onClick={() => setOpen(true)}>{label ?? "+ New Appointment"}</Button>
       <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>New Appointment</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-1">
-              <Label>Patient Name</Label>
-              <Input
-                value={patientName}
-                onChange={(e) => setPatientName(e.target.value)}
-                placeholder="Full name"
-                required
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Phone Number</Label>
-              <Input
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                placeholder="+16041234567"
-                required
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Language Preference</Label>
-              <Select value={preferredLanguage} onValueChange={(v) => v && setPreferredLanguage(v)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {LANGUAGES.map((l) => (
-                    <SelectItem key={l.value} value={l.value}>
-                      {l.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {prefilledPatient ? (
+              <div className="bg-[#f7f9fb] rounded-lg px-4 py-3 flex items-center gap-3">
+                <span className="material-symbols-outlined text-[#004471] text-xl">person</span>
+                <div>
+                  <p className="text-sm font-bold text-[#191c1e]">{prefilledPatient.name}</p>
+                  <p className="text-xs text-[#414750]">{prefilledPatient.phoneNumber}</p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-1">
+                  <Label>Patient Name</Label>
+                  <Input
+                    value={patientName}
+                    onChange={(e) => setPatientName(e.target.value)}
+                    placeholder="Full name"
+                    required
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Phone Number</Label>
+                  <Input
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    placeholder="+16041234567"
+                    required
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Language Preference</Label>
+                  <Select value={preferredLanguage} onValueChange={(v) => v && setPreferredLanguage(v)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {LANGUAGES.map((l) => (
+                        <SelectItem key={l.value} value={l.value}>
+                          {l.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
             <div className="space-y-1">
               <Label>Appointment Date & Time</Label>
               <Input

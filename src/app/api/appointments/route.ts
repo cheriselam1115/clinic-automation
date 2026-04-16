@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { getClinicId } from "@/lib/session";
 import { sendSms } from "@/lib/twilio";
+import { autoRemoveFromWaitlist } from "@/lib/waitlist";
 import { confirmationSms, type Language } from "@/lib/sms-templates";
 import { buildGoogleCalendarUrl, buildAppleCalendarUrl } from "@/lib/calendar";
 import { formatAppointmentDate } from "@/lib/format-date";
@@ -51,7 +52,8 @@ export async function POST(req: NextRequest) {
 
   const [clinic, patient] = await Promise.all([
     prisma.clinic.findUnique({ where: { id: clinicId } }),
-    prisma.patient.findUnique({ where: { id: patientId } }),
+    // scope patient to this clinic so a user can't book for another clinic's patient
+    prisma.patient.findFirst({ where: { id: patientId, clinicId } }),
   ]);
 
   if (!clinic || !patient) {
@@ -67,6 +69,13 @@ export async function POST(req: NextRequest) {
       notes,
     },
   });
+
+  // Auto-remove patient from waitlist now that they have an appointment
+  try {
+    await autoRemoveFromWaitlist(patientId, clinicId, appointmentType);
+  } catch (err) {
+    console.error("Failed to auto-remove from waitlist:", err);
+  }
 
   // Send confirmation SMS
   try {

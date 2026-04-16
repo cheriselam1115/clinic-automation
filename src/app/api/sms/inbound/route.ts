@@ -5,9 +5,14 @@ import { parseSmsIntent } from "@/lib/sms-parser";
 import {
   receptionistCancelAlert,
   receptionistRescheduleAlert,
+  waitlistBookedSms,
+  waitlistPassedSms,
+  receptionistWaitlistBookedAlert,
   type Language,
 } from "@/lib/sms-templates";
 import { formatAppointmentDate } from "@/lib/format-date";
+import { buildGoogleCalendarUrl, buildAppleCalendarUrl } from "@/lib/calendar";
+import { offerNextWaitlistPatient } from "@/lib/waitlist";
 
 // Twilio expects TwiML XML response
 function twimlResponse(message: string): Response {
@@ -21,8 +26,9 @@ export async function POST(req: NextRequest) {
   const body = await req.text();
   const params = Object.fromEntries(new URLSearchParams(body));
 
-  // Validate Twilio signature in production
-  if (process.env.NODE_ENV === "production") {
+  // Validate Twilio signature on every request — not just in production.
+  // Skipped only when TWILIO_AUTH_TOKEN is absent (e.g. unit tests without Twilio).
+  if (process.env.TWILIO_AUTH_TOKEN) {
     const signature = req.headers.get("x-twilio-signature") ?? "";
     const url = process.env.NEXT_PUBLIC_APP_URL + "/api/sms/inbound";
     const isValid = validateTwilioSignature(signature, url, params);
@@ -89,6 +95,168 @@ export async function POST(req: NextRequest) {
     return twimlResponse(reply);
   }
 
+  // ─── Layer 1: pending waitlist offers ──────────────────────────────────────
+  const now = new Date();
+  const pendingOffers = await prisma.waitlistOffer.findMany({
+    where: {
+      waitlistEntry: { patientId: patient.id, clinicId: clinic.id },
+      status: "pending",
+      offerExpiresAt: { gt: now },
+    },
+    include: { waitlistEntry: true },
+    orderBy: { offeredApptAt: "asc" }, // earliest slot first
+  });
+
+  if (pendingOffers.length > 0) {
+    const offerIntent = parseSmsIntent(messageBody);
+    const lang = patient.preferredLanguage as Language;
+    const { appointmentDate: offerDate, appointmentTime: offerTime } =
+      formatAppointmentDate(pendingOffers[0].offeredApptAt, clinic.timezone);
+
+    if (offerIntent.type === "confirm") {
+      const winner = pendingOffers[0]; // earliest slot
+      const apptType = winner.offeredApptType ?? "appointment";
+
+      // Create the appointment for this patient
+      const newAppt = await prisma.appointment.create({
+        data: {
+          clinicId: clinic.id,
+          patientId: patient.id,
+          appointmentAt: winner.offeredApptAt,
+          appointmentType: apptType,
+          status: "scheduled",
+        },
+      });
+
+      // Accept winner, decline all other pending offers for this patient
+      await prisma.waitlistOffer.updateMany({
+        where: {
+          waitlistEntry: { patientId: patient.id },
+          status: "pending",
+        },
+        data: { status: "declined" },
+      });
+      await prisma.waitlistOffer.update({
+        where: { id: winner.id },
+        data: { status: "accepted" },
+      });
+
+      // Mark the waitlist entry as booked
+      await prisma.waitlistEntry.update({
+        where: { id: winner.waitlistEntryId },
+        data: { status: "booked" },
+      });
+
+      // Build calendar URLs
+      const googleUrl = buildGoogleCalendarUrl({
+        appointmentId: newAppt.id,
+        patientName: patient.name,
+        clinicName: clinic.name,
+        clinicAddress: clinic.address,
+        appointmentAt: winner.offeredApptAt,
+      });
+      const appleUrl = buildAppleCalendarUrl(newAppt.id);
+
+      const bookedBody = waitlistBookedSms(
+        {
+          patientName: patient.name,
+          clinicName: clinic.name,
+          apptDate: offerDate,
+          apptTime: offerTime,
+          apptType,
+          googleCalendarUrl: googleUrl,
+          appleCalendarUrl: appleUrl,
+        },
+        lang
+      );
+
+      // Send booked confirmation to patient
+      await prisma.smsLog.create({
+        data: {
+          clinicId: clinic.id,
+          patientId: patient.id,
+          appointmentId: newAppt.id,
+          direction: "outbound",
+          body: bookedBody,
+          fromNumber: toNumber,
+          toNumber: fromNumber,
+          status: "sent",
+        },
+      });
+
+      // Alert receptionist
+      try {
+        const alertBody = receptionistWaitlistBookedAlert(
+          patient.name,
+          patient.phoneNumber,
+          offerDate,
+          offerTime,
+          apptType,
+          clinic.name
+        );
+        await twilioClient.messages.create({
+          to: clinic.alertPhoneNumber,
+          from: clinic.phoneNumber,
+          body: alertBody,
+        });
+      } catch (err) {
+        console.error("Failed to send waitlist booked alert:", err);
+      }
+
+      return twimlResponse(bookedBody);
+
+    } else if (offerIntent.type === "cancel") {
+      // Decline the most recent pending offer, cascade to next in queue
+      const latest = pendingOffers[pendingOffers.length - 1];
+      await prisma.waitlistOffer.update({
+        where: { id: latest.id },
+        data: { status: "declined" },
+      });
+
+      // Cascade
+      if (latest.cancelledApptId && latest.offeredApptAt) {
+        await offerNextWaitlistPatient(
+          {
+            id: latest.cancelledApptId,
+            clinicId: clinic.id,
+            appointmentType: latest.offeredApptType,
+            appointmentAt: latest.offeredApptAt,
+          },
+          {
+            id: clinic.id,
+            name: clinic.name,
+            phoneNumber: clinic.phoneNumber,
+            alertPhoneNumber: clinic.alertPhoneNumber,
+            timezone: clinic.timezone,
+          }
+        );
+      }
+
+      const passedBody = waitlistPassedSms(lang);
+      await prisma.smsLog.create({
+        data: {
+          clinicId: clinic.id,
+          patientId: patient.id,
+          direction: "outbound",
+          body: passedBody,
+          fromNumber: toNumber,
+          toNumber: fromNumber,
+          status: "sent",
+        },
+      });
+      return twimlResponse(passedBody);
+
+    } else {
+      // Unknown intent while offer is pending — nudge them
+      const nudge =
+        lang === "zh-TW" || lang === "yue"
+          ? `回覆 1 預約 ${offerDate} ${offerTime} 的空缺，或回覆 2 放棄。`
+          : `Reply 1 to book the ${offerDate} at ${offerTime} slot, or 2 to pass.`;
+      return twimlResponse(nudge);
+    }
+  }
+  // ─── End Layer 1 ───────────────────────────────────────────────────────────
+
   const intent = parseSmsIntent(messageBody);
   const lang = patient.preferredLanguage as Language;
   const { appointmentDate, appointmentTime } = formatAppointmentDate(
@@ -113,6 +281,7 @@ export async function POST(req: NextRequest) {
 
     case "cancel":
       newStatus = "cancelled";
+      // Trigger waitlist offer for this freed slot (after status update below)
       replyMessage =
         lang === "zh-TW"
           ? `您的預約已取消。如需重新預約，請致電 ${clinic.alertPhoneNumber}。`
@@ -158,6 +327,29 @@ export async function POST(req: NextRequest) {
       where: { id: appointment.id },
       data: { status: newStatus },
     });
+
+    // When a patient cancels via SMS, offer the freed slot to the waitlist
+    if (newStatus === "cancelled") {
+      try {
+        await offerNextWaitlistPatient(
+          {
+            id: appointment.id,
+            clinicId: clinic.id,
+            appointmentType: appointment.appointmentType,
+            appointmentAt: appointment.appointmentAt,
+          },
+          {
+            id: clinic.id,
+            name: clinic.name,
+            phoneNumber: clinic.phoneNumber,
+            alertPhoneNumber: clinic.alertPhoneNumber,
+            timezone: clinic.timezone,
+          }
+        );
+      } catch (err) {
+        console.error("Failed to trigger waitlist offer on SMS cancel:", err);
+      }
+    }
   }
 
   // Send alert to receptionist
